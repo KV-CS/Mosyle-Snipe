@@ -1,214 +1,217 @@
-# Mosyle to Snipe-IT Sync Script
+# Mosyle to Snipe-IT Sync
 
 This Python script synchronizes device information between Mosyle MDM and Snipe-IT asset management system. It pulls device data from Mosyle and either updates existing assets or creates new ones in Snipe-IT.
 
 ## Features
 
-- **Full MDM Integration**: Pulls complete device information from Mosyle Mobile Device Management
-- **Smart Asset Syncing**: Creates new assets or updates existing ones based on serial number matching
-- **Conflict Resolution**: Intelligently handles serial number conflicts and casing differences
-- **Rate Limit Management**: Implements advanced rate limiting with exponential backoff
-- **Batch Processing**: Processes devices in configurable batches to reduce API load
-- **Pagination Support**: Handles large device inventories through automatic pagination
-- **Comprehensive Logging**: Detailed logging for troubleshooting and auditing
+- JWT token generation for Mosyle API authentication (required as of February 2024)
+- Retrieves device information from Mosyle MDM with pagination support
+- Creates or updates assets in Snipe-IT
+- Creates models in Snipe-IT if they don't exist
+- Maps Mosyle device attributes to Snipe-IT custom fields
+- Handles device-to-user assignments
+- Sets purchase dates based on Mosyle first enrollment dates
+- Advanced rate limiting with exponential backoff
+- Batch processing to reduce API load
+- Retry logic for failed requests
+- Dry run mode for testing
 
 ## Requirements
 
-- Python 3.6+
+- Python 3.6 or higher
 - `requests` module
-- JSON configuration file
 
 ## Installation
 
-1. Clone or download this script to your server or local machine
+1. Clone this repository or download the script files
 2. Install required Python modules:
-   ```
-   pip install requests
-   ```
-3. Create a `settings.json` file (see Configuration section)
-4. Run the script:
-   ```
-   python mosyle_snipeit_sync.py
-   ```
+
+```bash
+pip install requests
+```
+
+3. Copy `example.settings.json` to `settings.json` and update it with your specific information:
+
+```bash
+cp example.settings.json settings.json
+```
+
+4. Edit `settings.json` to include your Mosyle and Snipe-IT credentials and configuration details
 
 ## Configuration
 
-Create a `settings.json` file in the same directory as the script with the following structure:
+The script requires a configuration file (`settings.json`) with the following sections:
+
+### JSON Configuration Format
 
 ```json
 {
   "mosyle": {
-    "api_url": "https://managerapi.mosyle.com/v2",
-    "email": "your-admin-email@example.com",
-    "password": "your-admin-password",
-    "access_token": "your-mosyle-access-token",
+    "api_url": "https://businessapi.mosyle.com/v2",
+    "email": "your_mosyle_admin_email@example.com",
+    "password": "your_mosyle_password",
+    "access_token": "YOUR_MOSYLE_ACCESS_TOKEN",
     "jwt_token": ""
   },
   "snipeit": {
-    "api_url": "https://your-snipeit-instance.example.com",
-    "api_key": "your-snipeit-api-key",
-    "default_status": "2",
-    "manufacturer_id": "1",
-    "macos_category_id": "3",
-    "ios_category_id": "4",
-    "tvos_category_id": "5",
-    "macos_fieldset_id": "1", 
-    "ios_fieldset_id": "2",
-    "tvos_fieldset_id": "3",
-    "rate_limit": 60
+    "api_url": "https://your-snipeit-instance.com",
+    "api_key": "YOUR_SNIPEIT_API_KEY",
+    "default_status": 1,
+    "manufacturer_id": 1,
+    "macos_category_id": 1,
+    "ios_category_id": 2,
+    "tvos_category_id": 3,
+    "macos_fieldset_id": 1,
+    "ios_fieldset_id": 2,
+    "tvos_fieldset_id": 3,
+    "rate_limit": 120
   }
 }
 ```
 
 ### Mosyle Configuration
 
-- `api_url`: The base URL for the Mosyle API (usually `https://managerapi.mosyle.com/v2`)
-- `email`: Your Mosyle administrator email
-- `password`: Your Mosyle administrator password
-- `access_token`: Your Mosyle API access token
-- `jwt_token`: Leave empty on first run; the script will obtain and save it
+- `api_url`: Mosyle API URL
+- `email`: Your Mosyle administrator email (required for JWT token generation)
+- `password`: Your Mosyle administrator password (required for JWT token generation)
+- `access_token`: Mosyle API access token
+- `jwt_token`: Mosyle JWT token (will be generated and stored automatically)
 
 ### Snipe-IT Configuration
 
-- `api_url`: Your Snipe-IT instance URL
-- `api_key`: Your Snipe-IT API key
-- `default_status`: ID for default asset status (e.g., 2 = "Ready to Deploy")
-- `manufacturer_id`: ID for Apple in your Snipe-IT instance
-- Category IDs: Different categories for different device types
-  - `macos_category_id`: Category ID for Mac computers
-  - `ios_category_id`: Category ID for iOS devices
-  - `tvos_category_id`: Category ID for Apple TVs
-- Fieldset IDs: Custom fieldsets for each device type
-  - `macos_fieldset_id`: Fieldset ID for Mac-specific fields
-  - `ios_fieldset_id`: Fieldset ID for iOS-specific fields
-  - `tvos_fieldset_id`: Fieldset ID for tvOS-specific fields
-- `rate_limit`: Maximum API calls per minute (default is 60)
+- `api_url`: Snipe-IT API URL
+- `api_key`: Snipe-IT API key
+- `default_status`: Default status ID for new assets (e.g., 1 for "Ready to Deploy")
+- `manufacturer_id`: Manufacturer ID for Apple in your Snipe-IT instance
+- `macos_category_id`, `ios_category_id`, `tvos_category_id`: Category IDs for different device types
+- `macos_fieldset_id`, `ios_fieldset_id`, `tvos_fieldset_id`: (Optional) Custom fieldset IDs for different device types
+- `rate_limit`: API rate limit (default: 120 requests per minute)
 
-## Finding IDs in Snipe-IT
+## Obtaining Required IDs
 
-To find the various IDs needed for configuration:
+Before using the script, you'll need to obtain several IDs from your Snipe-IT instance:
 
-### Status IDs
+1. **Manufacturer ID**: Navigate to "Manufacturers" in Snipe-IT, find Apple, and note the ID from the URL (e.g., `/manufacturers/1`)
+2. **Category IDs**: Navigate to "Categories" in Snipe-IT, find your categories for different device types, and note the IDs from the URLs
+3. **Status IDs**: Navigate to "Statuslabels" in Snipe-IT and note the IDs for the statuses you want to use
+4. **Fieldset IDs**: If you're using custom fields, navigate to "Custom Fields" in Snipe-IT and note the fieldset IDs
 
-1. Go to Admin → Status Labels
-2. The ID is in the URL when editing a status (e.g., `/statuslabels/2/edit` means ID is `2`)
+## Custom Fields
 
-### Manufacturer ID
+For the script to map Mosyle device attributes to Snipe-IT custom fields, you need to create the following custom fields in Snipe-IT:
 
-1. Go to Admin → Manufacturers
-2. The ID is in the URL when editing a manufacturer (e.g., `/manufacturers/1/edit` means ID is `1`)
+- `snipeit_os_version`: OS version
+- `snipeit_imei`: IMEI number for cellular devices
+- `snipeit_mac_address`: WiFi MAC address
+- `snipeit_model_name`: Model name
+- `snipeit_last_checkin`: Last check-in date
+- `snipeit_battery_level`: Battery level
+- `snipeit_available_space`: Available disk space
+- `snipeit_total_disk`: Total disk space
+- `snipeit_supervised`: Device supervision status
+- `snipeit_ethernet_mac`: Ethernet MAC address
+- `snipeit_bluetooth_mac`: Bluetooth MAC address
+- `snipeit_activation_lock`: Activation lock status
+- `snipeit_first_enrollment`: First enrollment date
 
-### Category IDs
+You can add or remove field mappings by modifying the `field_mappings` dictionary in the `build_asset_payload` method.
 
-1. Go to Admin → Categories
-2. The ID is in the URL when editing a category (e.g., `/categories/3/edit` means ID is `3`)
+## JWT Token Management
 
-### Fieldset IDs
+The script will automatically handle JWT token management:
 
-1. Go to Admin → Custom Fields → Fieldsets
-2. The ID is in the URL when editing a fieldset (e.g., `/fields/fieldsets/1/edit` means ID is `1`)
+1. It will first try to use the token stored in settings.json
+2. If the API rejects the token or no token exists, it will automatically generate a new token using the credentials in settings.json
+3. The new token will be saved back to settings.json for future use
 
-## Command-Line Options
+You can also manually generate a token:
 
+```bash
+python mosyle_to_snipe.py token
 ```
-python mosyle_snipeit_sync.py [options]
 
-Options:
-  --config CONFIG_FILE     Path to configuration file (default: settings.json)
-  --device-type {all,ios,mac,tvos}
-                           Type of devices to sync (default: all)
-  --dry-run                Dry run (do not make changes to Snipe-IT)
-  --batch-size BATCH_SIZE  Number of devices to process in each batch (default: 50)
-  --batch-delay BATCH_DELAY
-                           Delay in seconds between batches (default: 5.0)
+## Usage
+
+Run the script with the following command:
+
+```bash
+python mosyle_to_snipe.py [options]
 ```
+
+### Options
+
+- `--config`: Path to configuration file (default: `settings.json`)
+- `--device-type`: Type of devices to sync (`all`, `ios`, `mac`, or `tvos`, default: `all`)
+- `--dry-run`: Dry run mode (no changes will be made to Snipe-IT)
+- `--batch-size`: Number of devices to process in each batch (default: 50)
+- `--batch-delay`: Delay in seconds between batches (default: 5.0)
 
 ### Examples
 
-Sync all device types with default settings:
-```
-python mosyle_snipeit_sync.py
+Sync all devices:
+```bash
+python mosyle_to_snipe.py
 ```
 
 Sync only Mac devices:
-```
-python mosyle_snipeit_sync.py --device-type mac
-```
-
-Dry run (no changes to Snipe-IT):
-```
-python mosyle_snipeit_sync.py --dry-run
+```bash
+python mosyle_to_snipe.py --device-type mac
 ```
 
-Process in smaller batches with longer delays (for stricter rate limits):
+Test the script without making changes:
+```bash
+python mosyle_to_snipe.py --dry-run
 ```
-python mosyle_snipeit_sync.py --batch-size 25 --batch-delay 10
+
+Use a different configuration file:
+```bash
+python mosyle_to_snipe.py --config custom_settings.json
 ```
 
-## Field Mapping
+## Special Features
 
-The script maps the following fields from Mosyle to Snipe-IT:
+### Mosyle as Source of Truth
+The script uses Mosyle as the source of truth for several key asset attributes:
 
-| Snipe-IT Field | Mosyle Field |
-|----------------|--------------|
-| Serial Number | serial_number |
-| Asset Tag | asset_tag or serial_number |
-| Device Name | device_name |
-| Model | device_model |
-| OS Version | osversion |
-| IMEI | imei |
-| MAC Address | wifi_mac_address |
-| Model Name | model_name |
-| Last Check-in | date_last_beat |
-| Battery Level | battery |
-| Available Space | available_disk |
-| Total Disk | total_disk |
-| Supervised | is_supervised |
-| Ethernet MAC | ethernet_mac_address |
-| Bluetooth MAC | bluetooth_mac_address |
-| Activation Lock | isActivationLockEnabled |
-| First Enrollment | date_first_enrollment |
+1. **Device Models**: If a device has a different model in Snipe-IT compared to Mosyle, the script will update the Snipe-IT model to match what's in Mosyle.
 
-## Troubleshooting
+2. **Asset Tags**: If an asset tag in Snipe-IT differs from the one in Mosyle, the script will update Snipe-IT to use the asset tag from Mosyle.
 
-### Common Issues
+### Purchase Dates
+The script automatically sets purchase dates in Snipe-IT based on the "first enroll date" from Mosyle. The purchase date is set to the first day of the month of the enrollment date.
 
-#### 405 INVALID_METHOD Error
-This occurs when the Mosyle API endpoint is called with the wrong HTTP method. The script uses POST for all Mosyle API calls.
+For example:
+- First enrollment date in Mosyle: "07:14 PM - 08/05/2024"
+- Purchase date set in Snipe-IT: "2024-08-01"
 
-#### 429 Too Many Requests
-This happens when you've hit the Snipe-IT API rate limit. The script implements automatic rate limiting and exponential backoff, but you may need to:
-- Increase the `--batch-delay` value
-- Decrease the `--batch-size` value
-- Adjust the `rate_limit` in your settings.json
-
-#### Serial Number Conflicts
-The script automatically handles serial number conflicts by:
-1. Never updating serial numbers for existing assets
-2. Searching for assets with case-insensitive matching
-3. Attempting to update instead of create when conflicts occur
-
-#### JWT Token Issues
-If you encounter authentication problems, try:
-1. Delete the `jwt_token` value in settings.json
-2. Verify your Mosyle email, password, and access token
-3. Run the script again to obtain a new JWT token
+If an asset already has a purchase date set in Snipe-IT, the script will respect that date and not overwrite it with the Mosyle enrollment date.
 
 ## Logging
 
-The script creates a log file `mosyle_snipeit_sync.log` in the same directory. This log contains detailed information about the sync process, including:
+The script logs information to both the console and a log file (`mosyle_snipeit_sync.log`). The log includes details about devices processed, assets created or updated, and any errors encountered.
 
-- API requests and responses
-- Device processing details
-- Errors and warnings
-- Statistics about created/updated/skipped assets
+## Automation
 
-Check this log for troubleshooting or to verify the sync results.
+You can set up a cron job or scheduled task to run the script automatically at regular intervals.
 
-## License
+### Example cron job (daily at 2 AM):
 
-This script is provided as-is without any warranty. Use at your own risk.
+```bash
+0 2 * * * /path/to/python /path/to/mosyle_to_snipe.py >> /path/to/sync.log 2>&1
+```
 
-## Acknowledgments
+## Troubleshooting
 
-This script was created to help IT admins manage their Apple device inventory more efficiently by keeping Mosyle MDM and Snipe-IT asset management in sync.
+### Rate Limiting
+
+If you encounter rate limiting issues with the Snipe-IT API, you can adjust the `rate_limit` setting in the configuration file. The default is 120 requests per minute, which is the standard Snipe-IT API rate limit.
+
+### Authentication Errors
+
+- For Mosyle, the script will automatically refresh JWT tokens when needed
+- For Snipe-IT, make sure your API key has sufficient permissions
+
+### Missing Devices
+
+- Check that devices in Mosyle have serial numbers
+- Verify that user-enrolled devices are not being filtered out if you want to include them

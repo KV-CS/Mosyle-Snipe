@@ -1301,6 +1301,8 @@ def main():
     
     # Create main parser
     parser = argparse.ArgumentParser(description='Mosyle to Snipe-IT Sync Tool')
+    parser.add_argument('--config', dest='config', default='settings.json',
+                        help='Path to configuration file (default: settings.json)')
     subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
     # Token command
@@ -1328,10 +1330,14 @@ def main():
         # If no command specified or 'sync' command specified, run sync
         if args.command is None:
             # Handle case where no command was specified, use default values for sync
+            args.command = 'sync'
             args.device_type = 'all'
             args.dry_run = False
             args.batch_size = 50
             args.batch_delay = 5.0
+            # Ensure config attribute exists
+            if not hasattr(args, 'config'):
+                args.config = 'settings.json'
         sync_command(args)
     elif args.command == 'token':
         token_command(args)
