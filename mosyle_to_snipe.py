@@ -32,6 +32,9 @@ Requirements:
 - json module
 """
 
+#!/usr/bin/env python3
+# Add this near the beginning of the script, replacing the current logging setup
+
 import json
 import datetime
 import time
@@ -41,18 +44,70 @@ import os
 import re
 import requests
 import argparse
-from typing import Dict, List, Union, Optional, Any
+from typing import Dict, List, Optional, Any
 
-# Configure logging
+# Set up basic console logging first
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("mosyle_snipeit_sync.log"),
         logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
+
+def setup_logging(config_file='settings.json'):
+    """
+    Set up logging with directory from settings
+    
+    Args:
+        config_file: Path to configuration file
+    """
+    try:
+        # Default log directory is current directory
+        log_dir = '.'
+        
+        # Try to read log directory from config file
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                log_dir = config.get('log_directory', '.')
+        
+        # Create log directory if it doesn't exist
+        if log_dir and log_dir != '.' and not os.path.exists(log_dir):
+            try:
+                os.makedirs(log_dir, exist_ok=True)
+                logger.info(f"Created log directory: {log_dir}")
+            except Exception as e:
+                logger.error(f"Failed to create log directory {log_dir}: {str(e)}")
+                log_dir = '.'  # Fallback to current directory
+        
+        # Full path to log file
+        log_file = os.path.join(log_dir, 'mosyle_snipeit_sync.log')
+        
+        # Check if we can write to the log file
+        try:
+            # Try to append to the file (or create it if it doesn't exist)
+            with open(log_file, 'a'):
+                pass
+        except Exception as e:
+            logger.error(f"Cannot write to log file {log_file}: {str(e)}")
+            logger.error("Falling back to current directory for logging")
+            log_file = 'mosyle_snipeit_sync.log'  # Fallback to current directory
+        
+        # Add file handler to root logger
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        
+        # Get root logger and add file handler
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        
+        logger.info(f"Logging to: {log_file}")
+        
+    except Exception as e:
+        logger.error(f"Error setting up logging: {str(e)}")
+        logger.error("Continuing with console-only logging")
 
 def get_jwt_token(email: str, password: str, access_token: str, api_url: str = "https://managerapi.mosyle.com/v2") -> Optional[str]:
     """
@@ -1323,8 +1378,11 @@ def main():
     sync_parser.add_argument('--batch-delay', dest='batch_delay', type=float, default=5.0,
                             help='Delay in seconds between batches (default: 5.0)')
     
-    # For backward compatibility, make sync the default command if no command is specified
+    # Parse arguments
     args = parser.parse_args()
+    
+    # Set up logging with config path
+    setup_logging(args.config)
     
     if args.command is None or args.command == 'sync':
         # If no command specified or 'sync' command specified, run sync
