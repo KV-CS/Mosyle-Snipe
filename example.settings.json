@@ -1,0 +1,22 @@
+{
+  "mosyle": {
+    "api_url": "https://managerapi.mosyle.com/v2",
+    "email": "your_mosyle_admin_email@example.com",
+    "password": "your_mosyle_password",
+    "access_token": "YOUR_MOSYLE_ACCESS_TOKEN",
+    "jwt_token": ""
+  },
+  "snipeit": {
+    "api_url": "https://assets.example.org",
+    "api_key": "YOUR_SNIPEIT_API_KEY",
+    "default_status": 1,
+    "manufacturer_id": 1,
+    "macos_category_id": 1,
+    "ios_category_id": 2,
+    "tvos_category_id": 3,
+    "macos_fieldset_id": 1,
+    "ios_fieldset_id": 2,
+    "tvos_fieldset_id": 3,
+    "rate_limit": 120
+  }
+}
