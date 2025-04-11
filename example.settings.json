@@ -18,5 +18,6 @@
     "ios_fieldset_id": 2,
     "tvos_fieldset_id": 3,
     "rate_limit": 120
-  }
+  },
+  "log_directory": ""
 }

@@ -1263,18 +1263,15 @@ class MosyleSnipeSync:
             self.stats['errors'] += 1
             return False
     
-    def run(self, device_type: str = 'all', dry_run: bool = False, batch_size: int = 50, batch_delay: float = 5.0):
+    def run(self, device_type: str = 'all', dry_run: bool = False):
         """
         Run the sync process
         
         Args:
             device_type: Type of devices to sync (ios, mac, tvos)
             dry_run: If True, don't actually create/update assets
-            batch_size: Number of devices to process in each batch
-            batch_delay: Delay in seconds between batches
         """
-        logger.info(f"Starting Mosyle to Snipe-IT sync (device_type: {device_type}, dry_run: {dry_run}, "
-                    f"batch_size: {batch_size}, batch_delay: {batch_delay})")
+        logger.info(f"Starting Mosyle to Snipe-IT sync (device_type: {device_type}, dry_run: {dry_run})")
         
         # Get devices from Mosyle
         devices = self.mosyle.get_devices(device_type)
@@ -1300,25 +1297,12 @@ class MosyleSnipeSync:
                 else:
                     logger.info(f"Would create: {name} ({serial})")
         else:
-            # Process devices in batches to reduce load on Snipe-IT API
-            total_batches = (len(devices) + batch_size - 1) // batch_size  # Ceiling division
+            # Process all devices
+            logger.info(f"Processing {len(devices)} devices")
             
-            for batch_index in range(total_batches):
-                start_idx = batch_index * batch_size
-                end_idx = min(start_idx + batch_size, len(devices))
-                batch_devices = devices[start_idx:end_idx]
-                
-                logger.info(f"Processing batch {batch_index + 1}/{total_batches} "
-                            f"(devices {start_idx + 1}-{end_idx} of {len(devices)})")
-                
-                # Process each device in the batch
-                for device in batch_devices:
-                    self.process_device(device)
-                
-                # Pause between batches to reduce API load (except after the last batch)
-                if batch_index < total_batches - 1 and batch_delay > 0:
-                    logger.info(f"Batch {batch_index + 1} complete. Pausing for {batch_delay} seconds before next batch...")
-                    time.sleep(batch_delay)
+            # Process each device
+            for device in devices:
+                self.process_device(device)
         
         # Print statistics
         logger.info("Sync completed with the following results:")
@@ -1341,7 +1325,7 @@ def sync_command(args: argparse.Namespace) -> None:
     """
     try:
         sync = MosyleSnipeSync(args.config)
-        sync.run(args.device_type, args.dry_run, args.batch_size, args.batch_delay)
+        sync.run(args.device_type, args.dry_run)
     except Exception as e:
         logger.error(f"Error: {str(e)}")
         sys.exit(1)
@@ -1373,10 +1357,6 @@ def main():
                             help='Type of devices to sync (default: all)')
     sync_parser.add_argument('--dry-run', dest='dry_run', action='store_true',
                             help='Dry run (do not make changes to Snipe-IT)')
-    sync_parser.add_argument('--batch-size', dest='batch_size', type=int, default=50,
-                            help='Number of devices to process in each batch (default: 50)')
-    sync_parser.add_argument('--batch-delay', dest='batch_delay', type=float, default=5.0,
-                            help='Delay in seconds between batches (default: 5.0)')
     
     # Parse arguments
     args = parser.parse_args()
@@ -1391,8 +1371,6 @@ def main():
             args.command = 'sync'
             args.device_type = 'all'
             args.dry_run = False
-            args.batch_size = 50
-            args.batch_delay = 5.0
             # Ensure config attribute exists
             if not hasattr(args, 'config'):
                 args.config = 'settings.json'

@@ -12,8 +12,6 @@ This Python script synchronizes device information between Mosyle MDM and Snipe-
 - Handles device-to-user assignments
 - Sets purchase dates based on Mosyle first enrollment dates
 - Advanced rate limiting with exponential backoff
-- Batch processing to reduce API load
-- Retry logic for failed requests
 - Dry run mode for testing
 
 ## Requirements
@@ -65,7 +63,8 @@ The script requires a configuration file (`settings.json`) with the following se
     "ios_fieldset_id": 2,
     "tvos_fieldset_id": 3,
     "rate_limit": 120
-  }
+  },
+  "log_directory": "/path/to/logs"
 }
 ```
 
@@ -86,6 +85,10 @@ The script requires a configuration file (`settings.json`) with the following se
 - `macos_category_id`, `ios_category_id`, `tvos_category_id`: Category IDs for different device types
 - `macos_fieldset_id`, `ios_fieldset_id`, `tvos_fieldset_id`: (Optional) Custom fieldset IDs for different device types
 - `rate_limit`: API rate limit (default: 120 requests per minute)
+
+### General Configuration
+
+- `log_directory`: Directory where log files will be stored (default: current directory)
 
 ## Obtaining Required IDs
 
@@ -143,8 +146,6 @@ python mosyle_to_snipe.py [options]
 - `--config`: Path to configuration file (default: `settings.json`)
 - `--device-type`: Type of devices to sync (`all`, `ios`, `mac`, or `tvos`, default: `all`)
 - `--dry-run`: Dry run mode (no changes will be made to Snipe-IT)
-- `--batch-size`: Number of devices to process in each batch (default: 50)
-- `--batch-delay`: Delay in seconds between batches (default: 5.0)
 
 ### Examples
 
@@ -168,6 +169,12 @@ Use a different configuration file:
 python mosyle_to_snipe.py --config custom_settings.json
 ```
 
+## Logging
+
+The script logs information to both the console and a log file (`mosyle_snipeit_sync.log`). By default, the log file is created in the current directory, but you can specify a different location using the `log_directory` setting in your `settings.json` file.
+
+The log includes details about devices processed, assets created or updated, and any errors encountered. If the specified log directory doesn't exist, the script will attempt to create it. If it cannot write to the specified directory, it will fall back to using the current directory.
+
 ## Special Features
 
 ### Mosyle as Source of Truth
@@ -186,10 +193,6 @@ For example:
 
 If an asset already has a purchase date set in Snipe-IT, the script will respect that date and not overwrite it with the Mosyle enrollment date.
 
-## Logging
-
-The script logs information to both the console and a log file (`mosyle_snipeit_sync.log`). The log includes details about devices processed, assets created or updated, and any errors encountered.
-
 ## Automation
 
 You can set up a cron job or scheduled task to run the script automatically at regular intervals.
@@ -197,7 +200,7 @@ You can set up a cron job or scheduled task to run the script automatically at r
 ### Example cron job (daily at 2 AM):
 
 ```bash
-0 2 * * * /path/to/python /path/to/mosyle_to_snipe.py >> /path/to/sync.log 2>&1
+0 2 * * * /path/to/python /path/to/mosyle_to_snipe.py >> /path/to/additional_logs.log 2>&1
 ```
 
 ## Troubleshooting
@@ -215,3 +218,8 @@ If you encounter rate limiting issues with the Snipe-IT API, you can adjust the 
 
 - Check that devices in Mosyle have serial numbers
 - Verify that user-enrolled devices are not being filtered out if you want to include them
+
+### Logging Issues
+
+- If you encounter permissions issues with log files, check that the user running the script has write access to the specified `log_directory`
+- If running as a scheduled task or cron job, ensure that the service account has the necessary permissions
