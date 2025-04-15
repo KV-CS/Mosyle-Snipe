@@ -214,7 +214,7 @@ If you encounter rate limiting issues with the Snipe-IT API, you can adjust the 
 - For Mosyle, the script will automatically refresh JWT tokens when needed
 - For Snipe-IT, make sure your API key has sufficient permissions
 
-### Missing Devices
+### Missing Devicess
 
 - Check that devices in Mosyle have serial numbers
 - Verify that user-enrolled devices are not being filtered out if you want to include them
